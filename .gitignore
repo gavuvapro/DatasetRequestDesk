@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.local
+*.env
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Databases
+*.db
+*.sqlite3
+postgres-data/
+
+# Alembic
+backend/alembic/versions/__pycache__/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Large generated files (regenerate with seed/generate_episodes.py)
+seed/episodes_large.csv
+
+# Logs
+*.log

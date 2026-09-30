@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-drd}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drd}
+      POSTGRES_DB: ${POSTGRES_DB:-dataset_request_desk}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-drd} -d ${POSTGRES_DB:-dataset_request_desk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://drd:drd@db:5432/dataset_request_desk}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-720}
+      SEED_USERS_FILE: ${SEED_USERS_FILE:-/seed/users.json}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./seed:/seed:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    # Bring the schema up to date, seed users if the table is empty, then serve.
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.cli seed-users &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_BASE_URL: ${API_BASE_URL:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
