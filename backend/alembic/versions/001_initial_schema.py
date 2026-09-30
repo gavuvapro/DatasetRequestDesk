@@ -62,6 +62,8 @@ def upgrade() -> None:
     op.create_index("ix_requests_task_name", "requests", ["task_name"])
     op.create_index("ix_requests_status", "requests", ["status"])
 
+    # The unique constraint is declared inline so the migration works on both
+    # PostgreSQL and SQLite (which cannot ALTER-add constraints).
     op.create_table(
         "assignments",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -69,9 +71,9 @@ def upgrade() -> None:
         sa.Column("episode_id", sa.Integer(), sa.ForeignKey("episodes.id"), nullable=False),
         sa.Column("assigned_by_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("assigned_at", sa.DateTime(timezone=True), nullable=False),
+        sa.UniqueConstraint("episode_id", name="uq_assignments_episode_id"),
     )
     op.create_index("ix_assignments_request", "assignments", ["request_id"])
-    op.create_unique_constraint("uq_assignments_episode_id", "assignments", ["episode_id"])
 
     op.create_table(
         "request_status_history",
