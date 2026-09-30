@@ -113,6 +113,10 @@
                 wanted === u.role || (wanted === "operator" && u.role === "admin");
             el.classList.toggle("hidden", !visible);
         });
+        // Admin-only sections (user management) inside shared dashboards.
+        document.querySelectorAll("[data-admin-only]").forEach((el) => {
+            el.classList.toggle("hidden", u.role !== "admin");
+        });
 
         loginView.classList.add("hidden");
         appView.classList.add("hidden");
@@ -130,6 +134,9 @@
         }
         if (!isClient && window.OperatorDashboard) {
             window.OperatorDashboard.init();
+        }
+        if (u.role === "admin" && window.AdminDashboard) {
+            window.AdminDashboard.init();
         }
     }
 

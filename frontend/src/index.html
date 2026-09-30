@@ -192,6 +192,57 @@
                     each episode can belong to at most one request.
                 </p>
             </section>
+
+            <!-- ============ ADMIN ONLY: USER MANAGEMENT ============ -->
+            <section data-admin-only class="mt-4 hidden rounded-2xl bg-white p-5 shadow-sm">
+                <h2 class="mb-4 text-lg font-bold">User management</h2>
+                <div id="admin-error" class="mb-3 hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></div>
+                <div id="admin-success" class="mb-3 hidden rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700"></div>
+
+                <div class="mb-5 rounded-xl border border-slate-100 p-4">
+                    <h3 class="mb-3 text-sm font-semibold">Create user</h3>
+                    <form id="admin-user-form" class="grid gap-3 md:grid-cols-6">
+                        <input id="au-email" type="email" required placeholder="email@example.com"
+                            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none md:col-span-2" />
+                        <input id="au-password" type="password" required minlength="8" placeholder="password (min 8)"
+                            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" />
+                        <select id="au-role"
+                            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none">
+                            <option value="client">client</option>
+                            <option value="operator">operator</option>
+                            <option value="admin">admin</option>
+                        </select>
+                        <input id="au-name" required placeholder="Full name"
+                            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" />
+                        <input id="au-org" placeholder="Organisation (optional)"
+                            class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none" />
+                        <button type="submit"
+                            class="rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 md:col-span-6">
+                            Create user
+                        </button>
+                    </form>
+                </div>
+
+                <div class="table-scroll overflow-x-auto rounded-xl border border-slate-100">
+                    <table class="w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="px-3 py-2">ID</th>
+                                <th class="px-3 py-2">Email</th>
+                                <th class="px-3 py-2">Name</th>
+                                <th class="px-3 py-2">Organisation</th>
+                                <th class="px-3 py-2">Role</th>
+                                <th class="px-3 py-2">Status</th>
+                                <th class="px-3 py-2">Created</th>
+                                <th class="px-3 py-2 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users">
+                            <tr><td colspan="8" class="px-3 py-3 text-center text-xs text-slate-400">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -199,5 +250,6 @@
     <script src="js/auth.js"></script>
     <script src="js/client_dashboard.js"></script>
     <script src="js/operator_dashboard.js"></script>
+    <script src="js/admin_dashboard.js"></script>
 </body>
 </html>
