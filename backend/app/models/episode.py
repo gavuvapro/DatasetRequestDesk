@@ -1,5 +1,6 @@
 """Episode model: one recorded robot demonstration clip."""
 import enum
+from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -29,7 +30,13 @@ class Episode(Base):
     duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     operator_name: Mapped[str] = mapped_column(String(255), nullable=False)
     quality: Mapped[EpisodeQuality] = mapped_column(
-        Enum(EpisodeQuality, name="episode_quality", native_enum=False, length=10),
+        Enum(
+            EpisodeQuality,
+            name="episode_quality",
+            native_enum=False,
+            length=10,
+            values_callable=lambda e: [m.value for m in e],  # store 'good', not 'GOOD'
+        ),
         index=True,
         nullable=False,
     )

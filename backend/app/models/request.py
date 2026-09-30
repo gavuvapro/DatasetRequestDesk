@@ -1,5 +1,6 @@
 """Dataset request lifecycle model and its audit trail."""
 import enum
+from datetime import datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -26,7 +27,13 @@ class Request(Base):
     deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[RequestStatus] = mapped_column(
-        Enum(RequestStatus, name="request_status", native_enum=False, length=20),
+        Enum(
+            RequestStatus,
+            name="request_status",
+            native_enum=False,
+            length=20,
+            values_callable=lambda e: [m.value for m in e],  # store 'submitted', not 'SUBMITTED'
+        ),
         default=RequestStatus.SUBMITTED,
         index=True,
         nullable=False,

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.dependencies import CurrentUser, get_current_user
+from app.core.dependencies import CurrentUser
 from app.database import get_db
 from app.models import Assignment, Episode, Request, User
 from app.models.request import RequestStatus
@@ -20,7 +20,7 @@ from app.services.request_service import DomainError
 router = APIRouter(prefix="/api/requests", tags=["requests"])
 
 
-def _to_out(db: Session, request: Request) -> RequestOut:
+def _to_out(request: Request) -> RequestOut:
     client = request.client
     return RequestOut(
         id=request.id,
@@ -55,20 +55,20 @@ def _get_visible_request(db: Session, request_id: int, user: User) -> Request:
 @router.post("", response_model=RequestOut, status_code=status.HTTP_201_CREATED)
 def create_request(
     body: RequestCreate,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
-    """Clients (and admins acting for a client) create dataset requests."""
+    """Clients (and admins acting on their own behalf) create dataset requests."""
     if current_user.role not in (UserRole.CLIENT, UserRole.ADMIN):
         raise DomainError("FORBIDDEN", "Only clients can create requests", status.HTTP_403_FORBIDDEN)
-    return _to_out(db, request_service.create_request(db, current_user, body))
+    return _to_out(request_service.create_request(db, current_user, body))
 
 
 @router.get("", response_model=list[RequestOut])
 def list_requests(
+    current_user: CurrentUser,
     status_filter: RequestStatus | None = Query(None, alias="status"),
     db: Session = Depends(get_db),
-    current_user: CurrentUser,
 ):
     """Clients see only their own requests; operators/admins see all."""
     query = db.query(Request).options(joinedload(Request.client))
@@ -76,24 +76,24 @@ def list_requests(
         query = query.filter(Request.client_id == current_user.id)
     if status_filter:
         query = query.filter(Request.status == status_filter)
-    return [_to_out(db, r) for r in query.order_by(Request.created_at.desc()).all()]
+    return [_to_out(r) for r in query.order_by(Request.created_at.desc()).all()]
 
 
 @router.get("/{request_id}", response_model=RequestOut)
 def get_request(
     request_id: int,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
     request = _get_visible_request(db, request_id, current_user)
-    return _to_out(db, request)
+    return _to_out(request)
 
 
 @router.get("/{request_id}/history", response_model=list[HistoryOut])
 def get_history(
     request_id: int,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
     request = _get_visible_request(db, request_id, current_user)
     return list(request.status_history)
@@ -102,8 +102,8 @@ def get_history(
 @router.get("/{request_id}/assignments")
 def get_assignments(
     request_id: int,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
     """List episodes assigned to a request (visible to owner client + operators)."""
     request = _get_visible_request(db, request_id, current_user)
@@ -127,8 +127,8 @@ def get_assignments(
 def transition_request(
     request_id: int,
     body: TransitionRequest,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
     """Move a request through its state machine.
 
@@ -136,19 +136,16 @@ def transition_request(
     Owner client: delivered->accepted / delivered->rejected.
     """
     request = _get_visible_request(db, request_id, current_user)
-    try:
-        updated = request_service.apply_transition(db, request, body.to_status, current_user)
-    except DomainError as exc:
-        raise exc
-    return _to_out(db, updated)
+    updated = request_service.apply_transition(db, request, body.to_status, current_user)
+    return _to_out(updated)
 
 
-@router.post("/{request_id}/assign", response_model=list[dict])
+@router.post("/{request_id}/assign")
 def assign_episode(
     request_id: int,
     body: AssignEpisodeRequest,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
     """Assign one episode to a request (operator/admin only)."""
     if current_user.role not in (UserRole.OPERATOR, UserRole.ADMIN):
@@ -157,13 +154,11 @@ def assign_episode(
     episode = db.get(Episode, body.episode_id)
     if not episode:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Episode not found")
-    try:
-        request_service.assign_episode(db, request, episode, current_user)
-    except DomainError as exc:
-        raise exc
+    request_service.assign_episode(db, request, episode, current_user)
     return [
         {
             "id": a.id,
+            "episode_pk": a.episode_id,
             "episode_id": a.episode.episode_id,
             "quality": a.episode.quality.value,
         }
@@ -178,8 +173,8 @@ def assign_episode(
 def unassign_episode(
     request_id: int,
     episode_pk: int,
-    db: Session = Depends(get_db),
     current_user: CurrentUser,
+    db: Session = Depends(get_db),
 ):
     """Remove an assignment (operator rework before delivery)."""
     if current_user.role not in (UserRole.OPERATOR, UserRole.ADMIN):

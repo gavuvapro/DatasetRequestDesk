@@ -25,7 +25,13 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", native_enum=False, length=20),
+        Enum(
+            UserRole,
+            name="user_role",
+            native_enum=False,
+            length=20,
+            values_callable=lambda e: [m.value for m in e],  # store 'admin', not 'ADMIN'
+        ),
         default=UserRole.CLIENT,
         nullable=False,
     )

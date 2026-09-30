@@ -3,7 +3,7 @@
 The UNIQUE constraint on episode_id enforces "an episode is assigned to at most
 one request at a time" at the database level, not just in application code.
 """
-from datetime import datetime
+from datetime import datetime  # noqa: F401 - used in Mapped[] annotations
 
 from sqlalchemy import DateTime, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship

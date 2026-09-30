@@ -10,8 +10,8 @@ import json
 import sys
 
 from app.config import settings
-from app.database import SessionLocal
 from app.core.security import hash_password
+from app.database import get_session_factory
 
 
 def _seed_users(path: str) -> None:
@@ -21,7 +21,7 @@ def _seed_users(path: str) -> None:
     with open(path, encoding="utf-8") as fh:
         raw = json.load(fh)
 
-    db = SessionLocal()
+    db = get_session_factory()()
     created, existing = 0, 0
     try:
         for entry in raw:
@@ -48,7 +48,7 @@ def _seed_users(path: str) -> None:
 def _import_csv(path: str) -> None:
     from app.services.import_service import import_csv
 
-    db = SessionLocal()
+    db = get_session_factory()()
     try:
         report = import_csv(db, path)
     finally:
@@ -60,7 +60,7 @@ def _create_user(email: str, password: str, role: str, name: str, organisation: 
     from app.models import User
     from app.models.user import UserRole
 
-    db = SessionLocal()
+    db = get_session_factory()()
     try:
         if db.query(User).filter(User.email == email.lower()).first():
             print(json.dumps({"error": f"user {email} already exists"}))
