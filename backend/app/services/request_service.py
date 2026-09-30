@@ -48,9 +48,18 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def validate_transition(request: Request, to_status: RequestStatus, actor: User) -> None:
+def _as_status(value) -> RequestStatus:
+    """Accept 'in_progress' or RequestStatus.IN_PROGRESS interchangeably."""
+    if isinstance(value, RequestStatus):
+        return value
+    return RequestStatus(value)
+
+
+def validate_transition(request: Request, to_status, actor: User) -> None:
     """Raise DomainError unless `actor` may move `request` to `to_status` now."""
-    allowed = TRANSITIONS.get(request.status, set())
+    to_status = _as_status(to_status)
+    current = _as_status(request.status)
+    allowed = TRANSITIONS.get(current, set())
     if to_status not in allowed:
         raise DomainError(
             "INVALID_TRANSITION",
@@ -79,11 +88,12 @@ def validate_transition(request: Request, to_status: RequestStatus, actor: User)
 
 
 def apply_transition(
-    db: Session, request: Request, to_status: RequestStatus, actor: User
+    db: Session, request: Request, to_status, actor: User
 ) -> Request:
     """Validate then persist a transition with its audit-trail entry."""
+    to_status = _as_status(to_status)
     validate_transition(request, to_status, actor)
-    from_status = request.status
+    from_status = _as_status(request.status)
     request.status = to_status
     request.updated_at = _utcnow()
     db.add(
