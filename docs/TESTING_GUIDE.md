@@ -23,7 +23,7 @@ pip install -r requirements.txt                      # on Windows without a C co
 pytest
 ```
 
-Expected: **46 passed**. The suite covers exactly the areas the brief cares about:
+Expected: **57 passed**. The suite covers exactly the areas the brief cares about:
 
 | File | What it locks down |
 |---|---|
@@ -31,6 +31,7 @@ Expected: **46 passed**. The suite covers exactly the areas the brief cares abou
 | `tests/test_import.py` | messy-row rejection (bad quality, bad durations, unknown robots, unparseable dates), in-file duplicates, case-variant dedupe, ISO + European dates, idempotent re-import (172 imported then 0), header validation |
 | `tests/test_requests.py` | every legal/illegal transition, delivery precondition (`>= episodes_requested`), bad-quality rejection, one-episode-one-request (API rule **and** DB unique constraint), rework cycle, audit-trail contents |
 | `tests/test_analytics.py` | response shape, per-day/per-robot aggregation, top-5 good tasks, median over delivered-only requests with controlled timestamps, range validation |
+| `tests/test_exports.py` | stretch item: one job per assignment (idempotent), simulated success/failure, automatic retries up to the cap, retry endpoint (200/409/403), export status in the assignments payload, job removal on unassign, worker disabled under pytest |
 
 ### Inside Docker (PostgreSQL, exercises the `PERCENTILE_CONT` branch)
 

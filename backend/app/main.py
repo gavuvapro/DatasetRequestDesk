@@ -1,15 +1,31 @@
 """FastAPI application factory for Dataset Request Desk."""
 import logging
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import analytics, auth, episodes, health, requests, users
+from app.config import settings
 from app.logger import setup_logging
 
 setup_logging()
 logger = logging.getLogger("app")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Start the background export worker alongside the API."""
+    if settings.export_worker_enabled:
+        from app.services.export_worker import start_worker_thread
+
+        start_worker_thread()
+        logger.info(
+            "export worker started",
+            extra={"extra_fields": {"event": "worker_started"}},
+        )
+    yield
 
 
 class StructuredLoggingMiddleware:
@@ -75,6 +91,7 @@ def create_app() -> FastAPI:
         title="Dataset Request Desk API",
         version="1.0.0",
         description="Internal platform for robot teleoperation dataset requests.",
+        lifespan=lifespan,
     )
 
     app.add_middleware(

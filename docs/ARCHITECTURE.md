@@ -45,6 +45,7 @@ users 1 ──── n requests 1 ──── n assignments n ──── 1 ep
 | `requests` | `id`, `client_id FK`, `task_name`, `episodes_requested`, `deadline`, `notes`, `status` | indexes on `client_id`, `status`, `task_name`; `created_at`/`updated_at` |
 | `assignments` | `id`, `request_id FK`, `episode_id FK`, `assigned_by_user_id FK`, `assigned_at` | **`UNIQUE(episode_id)`** — an episode can belong to at most one request, enforced by the DB, not just the API |
 | `request_status_history` | `id`, `request_id FK`, `from_status`, `to_status`, `changed_by_user_id FK`, `changed_at` | composite index `(request_id, changed_at)`; append-only audit trail |
+| `export_jobs` | `id`, `assignment_id FK`, `episode_id FK`, `request_id FK`, `status`, `attempts`, `max_attempts`, `last_error` | **`UNIQUE(assignment_id)`** — exactly one job per assignment (idempotency anchor); indexes on `status`, `request_id` |
 
 State is deliberately centralised: `requests.status` is the single source of
 truth for workflow position; `request_status_history` is append-only evidence.
@@ -82,6 +83,26 @@ app/
 
 Business rules live in `services/`, never in routers, so the same rules are
 exercised by API tests and would be reusable by a CLI or worker.
+
+## Background export pipeline (stretch item)
+
+```
+assign_episode() ──► export_jobs (queued)                            1 job : 1 assignment
+                          ▲                                             UNIQUE(assignment_id)
+                          │ retry (reset attempts)                       = idempotency anchor
+ POST /assign/{ep}/retry-export
+
+export-worker thread (daemon, poll 2s):
+    claim oldest QUEUED (or FAILED w/ attempts left, or stale RUNNING)
+      → status=running, attempts+=1        [atomic UPDATE, FOR UPDATE SKIP LOCKED]
+    simulate: sleep 2–5s, 20% failure
+    → done | failed(last_error)            [own session, like a real worker]
+```
+
+Safety properties: idempotent creation (UNIQUE constraint backstops races),
+atomic claiming (two workers can never run one job), and crash recovery (a
+`running` job older than 60s is reclaimed). The worker runs in its own sessions
+and would extract cleanly to a separate process + real task queue later.
 
 ## Structured logging
 

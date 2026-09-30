@@ -8,6 +8,8 @@ from pathlib import Path
 # exercised in Docker - see docs/TESTING_GUIDE.md.)
 _TEST_DB = os.path.join(tempfile.gettempdir(), "drd_test_session.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
+# Tests drive export jobs directly (fast); the sleeping background worker is off.
+os.environ["EXPORT_WORKER_ENABLED"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

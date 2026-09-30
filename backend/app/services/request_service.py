@@ -162,6 +162,10 @@ def assign_episode(db: Session, request: Request, episode: Episode, actor: User)
             f"Episode {episode.episode_id} was just assigned to another request",
         ) from None
     db.refresh(request)
+    # Stretch item: enqueue the simulated background export for this episode.
+    from app.services.export_worker import ensure_job
+
+    ensure_job(db, assignment)
     return assignment
 
 
@@ -180,6 +184,10 @@ def unassign_episode(db: Session, request: Request, episode_pk: int, actor: User
     if not deleted:
         raise DomainError("ASSIGNMENT_NOT_FOUND", "That episode is not assigned to this request", 404)
     db.commit()
+    # Remove the corresponding export job, if any.
+    from app.services.export_worker import remove_job
+
+    remove_job(db, request.id, episode_pk)
 
 
 def create_request(db: Session, client: User, data) -> Request:

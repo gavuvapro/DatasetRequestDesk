@@ -8,6 +8,20 @@
     const { api } = window.DRD;
     let apiRef;
     let selectedRequestId = null;
+    let exportRefreshTimer = null;
+
+    const EXPORT_PILL = { queued: "pill-submitted", running: "pill-in_progress", done: "pill-accepted", failed: "pill-rejected" };
+
+    function exportBadge(exp) {
+        if (!exp) return `<span class="text-xs text-slate-400">—</span>`;
+        const cls = EXPORT_PILL[exp.status] || "pill-submitted";
+        const title = exp.last_error ? ` title="${escapeHtml(exp.last_error)}"` : "";
+        const retry = exp.status === "failed"
+            ? ` <button data-retry-export="${exp.episode_pk || ""}" data-attempts="${exp.attempts}/${exp.max_attempts}"
+                class="rounded border border-amber-300 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-50">Retry</button>`
+            : "";
+        return `<span${title} class="pill ${cls}">${escapeHtml(exp.status)} ${exp.attempts}/${exp.max_attempts}</span>${retry}`;
+    }
 
     function escapeHtml(s) {
         return String(s ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -144,16 +158,41 @@
                     <td class="px-3 py-1.5 font-mono text-xs">${escapeHtml(a.episode_id)}</td>
                     <td class="px-3 py-1.5">${escapeHtml(a.task_name)}</td>
                     <td class="px-3 py-1.5">${pill(a.quality)}</td>
+                    <td class="px-3 py-1.5">${exportBadge(Object.assign({ episode_pk: a.episode_pk }, a.export || {}))}</td>
                     <td class="px-3 py-1.5 text-right">
                         <button data-unassign="${a.episode_pk}" class="rounded border border-red-200 px-2 py-0.5 text-xs font-semibold text-red-600 hover:bg-red-50">Remove</button>
                     </td>
                 </tr>`
                   )
                   .join("")
-            : `<tr><td colspan="4" class="px-3 py-3 text-center text-xs text-slate-400">No episodes assigned yet — pick some from the episode browser.</td></tr>`;
+            : `<tr><td colspan="5" class="px-3 py-3 text-center text-xs text-slate-400">No episodes assigned yet — pick some from the episode browser.</td></tr>`;
         list.querySelectorAll("[data-unassign]").forEach((btn) =>
             btn.addEventListener("click", () => unassign(Number(btn.dataset.unassign)))
         );
+        list.querySelectorAll("[data-retry-export]").forEach((btn) =>
+            btn.addEventListener("click", () => retryExport(Number(btn.dataset.retryExport)))
+        );
+    }
+
+    async function retryExport(episodePk) {
+        if (!selectedRequestId) return;
+        try {
+            await apiRef(`/api/requests/${selectedRequestId}/assign/${episodePk}/retry-export`, {
+                method: "POST",
+            });
+            await loadAssignments();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    function startExportPolling() {
+        if (exportRefreshTimer) return;
+        exportRefreshTimer = setInterval(() => {
+            if (selectedRequestId && document.visibilityState === "visible") {
+                loadAssignments().catch(() => {});
+            }
+        }, 2000);
     }
 
     async function assign(episodePk) {
@@ -197,6 +236,7 @@
             wire("ep-search", { event: "click", handler: loadEpisodes });
             loadRequests().catch((e) => alert(e.message));
             loadEpisodes().catch((e) => alert(e.message));
+            startExportPolling();
         },
     };
 })();

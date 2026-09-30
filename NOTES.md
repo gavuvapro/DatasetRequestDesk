@@ -31,11 +31,18 @@ makes "one episode, one request" a database guarantee rather than a hope.
 
 ## 2. What I deliberately left out (and what I'd do next)
 
-- **No stretch item implemented.** With two more days I'd pick the background
-  "export job" stretch: a small `exports` table + worker with
-  `ON CONFLICT DO NOTHING` claiming, exponential-backoff retries, and per-episode
-  status shown in the operator assignment panel — it reuses the audit-trail
-  pattern already in place.
+- ~~No stretch item implemented~~ → **Stretch item implemented: background
+  work.** Every assignment enqueues a simulated export job (`export_jobs` table,
+  one per assignment via a UNIQUE constraint, so creation is idempotent). A
+  daemon worker thread claims jobs atomically (`FOR UPDATE SKIP LOCKED`),
+  simulates 2–5s of work, and fails ~20% of the time; failures retry up to 3
+  times, and stale `running` rows are reclaimed after 60s (crash recovery).
+  Operators see live per-episode export status in the assignment panel (2s poll)
+  and can re-queue a failed export via `POST .../retry-export`. The worker uses
+  its own sessions per job and would move to a separate process + real queue
+  (or Postgres `SKIP LOCKED` queue) without touching the domain model. With two
+  more days I'd add exponential backoff (`next_attempt_at`), a WebSocket/SSE
+  push instead of polling, and extract the worker to its own container.
 - **No pagination on request lists** (fine at this scale), no alembic autogenerate
   parity tests, no CI config (documented as nice-to-have in the brief).
 - **Admin UI is API-only.** User management (`POST/PATCH /api/users`) exists and
@@ -46,7 +53,7 @@ makes "one episode, one request" a database guarantee rather than a hope.
 
 ## 3. What went wrong (and how I diagnosed it)
 
-Two bugs worth admitting:
+Three bugs worth admitting:
 
 - **Enum values stored as names.** After the first end-to-end smoke test the
   analytics `top_tasks` came back empty. SQLAlchemy's `Enum` type persists
@@ -59,6 +66,13 @@ Two bugs worth admitting:
   with a confusing "value is not a valid email address" error. Diagnosed by
   reading the pydantic validation error verbatim; switched fixtures to
   `example.com` subdomains.
+- **Export retries never ran.** The first claim filter folded the crash-recovery
+  staleness check into *all* retries, so a freshly-failed job (updated_at = now)
+  was invisible to the worker. Debugged with a scripted two-run scenario against
+  a scratch SQLite DB; fixed by splitting the claim predicate into three
+  explicit branches (QUEUED always, FAILED with attempts left, RUNNING if stale)
+  and covering each with a test (`test_failure_is_retried`,
+  `test_retries_are_capped`).
 
 ## 4. Security
 

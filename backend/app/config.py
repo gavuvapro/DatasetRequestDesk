@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     log_format: str = "json"  # "json" | "text"
     log_level: str = "INFO"
 
+    # Background export worker (stretch item). Disable in tests.
+    export_worker_enabled: bool = True
+
     # Known robots accepted by the CSV import engine.
     known_robots: list[str] = ["arm-01", "arm-02", "arm-03", "mobile-01", "humanoid-01"]
 

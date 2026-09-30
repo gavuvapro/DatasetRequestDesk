@@ -14,7 +14,8 @@ cp .env.example .env        # optional: defaults work out of the box
 docker compose up --build
 ```
 
-This starts PostgreSQL, runs migrations, seeds users, and launches:
+This starts PostgreSQL, runs migrations, seeds users, starts the background
+export worker, and launches:
 
 - **Frontend:** http://localhost:3000
 - **API:** http://localhost:8000 (interactive docs at `/docs`)
@@ -44,8 +45,12 @@ what was imported, skipped, and why.
 ```bash
 cd backend
 pip install -r requirements.txt
-pytest          # 46 passed (SQLite; see docs/TESTING_GUIDE.md for Postgres runs)
+pytest          # 57 passed (SQLite; see docs/TESTING_GUIDE.md for Postgres runs)
 ```
+
+**Stretch item implemented:** background export jobs — every assignment gets a
+simulated export (2–5s, ~20% random failure) with automatic retries, live
+per-episode status in the operator UI, and an operator retry endpoint.
 
 ## Using Neon PostgreSQL
 

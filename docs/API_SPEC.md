@@ -111,12 +111,18 @@ Audit trail, oldest first:
 ```
 
 ### `GET /api/requests/{id}/assignments`
-Episodes assigned to the request:
+Episodes assigned to the request, each with its **background export status**
+(see [Export jobs](#export-jobs)):
 ```json
 [{ "id": 9, "episode_pk": 12, "episode_id": "EP-00138", "robot_id": "arm-02",
    "task_name": "pick cup", "quality": "good", "duration_seconds": 83,
-   "assigned_by_user_id": 2, "assigned_at": "..." }]
+   "assigned_by_user_id": 2, "assigned_at": "...",
+   "export": { "status": "done", "attempts": 1, "max_attempts": 3,
+               "last_error": null, "finished_at": "..." } }]
 ```
+`export` is `null` only for assignments created before the export feature.
+Statuses: `queued` → `running` → `done` | `failed` (failed jobs auto-retry up
+to `max_attempts`).
 
 ### `POST /api/requests/{id}/transition`
 Body: `{"to_status": "..."}`.
@@ -146,7 +152,25 @@ Rules enforced (409 on violation):
 **200** → the request's full assignment list.
 
 ### `DELETE /api/requests/{id}/assign/{episode_pk}` (operator/admin)
-Remove an assignment (only before delivery). `204`.
+Remove an assignment (only before delivery); its export job is removed too. `204`.
+
+---
+
+## Export jobs (stretch item)
+
+Every assignment automatically enqueues one export job — the simulated export
+pipeline runs 2–5 seconds per episode and fails randomly ~20% of the time.
+Failures are retried automatically while attempts remain (max 3 by default).
+The worker is a daemon thread started by the API on boot (`EXPORT_WORKER_ENABLED=false`
+turns it off; tests drive jobs directly).
+
+### `POST /api/requests/{id}/assign/{episode_pk}/retry-export` (operator/admin)
+Re-queue a failed export job (resets attempts to 0, status to `queued`).
+
+**200** → `{ "episode_pk": 12, "status": "queued", "attempts": 0 }`
+
+`409` if the export already completed (`done`), `404` if no job exists.
+Clients get `403` — only operators/admins retry exports.
 
 ---
 

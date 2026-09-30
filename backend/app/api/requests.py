@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import CurrentUser
 from app.database import get_db
-from app.models import Assignment, Episode, Request, User
+from app.models import Assignment, Episode, ExportJob, ExportStatus, Request, User
 from app.models.request import RequestStatus
 from app.models.user import UserRole
 from app.schemas.request import (
@@ -105,8 +105,14 @@ def get_assignments(
     current_user: CurrentUser,
     db: Session = Depends(get_db),
 ):
-    """List episodes assigned to a request (visible to owner client + operators)."""
+    """List episodes assigned to a request, including per-episode export status."""
     request = _get_visible_request(db, request_id, current_user)
+    jobs = {
+        j.assignment_id: j
+        for j in db.query(ExportJob)
+        .filter(ExportJob.request_id == request.id)
+        .all()
+    }
     return [
         {
             "id": a.id,
@@ -118,9 +124,22 @@ def get_assignments(
             "duration_seconds": a.episode.duration_seconds,
             "assigned_by_user_id": a.assigned_by_user_id,
             "assigned_at": a.assigned_at,
+            "export": _export_status(jobs.get(a.id)),
         }
         for a in request.assignments
     ]
+
+
+def _export_status(job: ExportJob | None) -> dict | None:
+    if job is None:
+        return None
+    return {
+        "status": job.status.value,
+        "attempts": job.attempts,
+        "max_attempts": job.max_attempts,
+        "last_error": job.last_error,
+        "finished_at": job.finished_at,
+    }
 
 
 @router.post("/{request_id}/transition", response_model=RequestOut)
@@ -167,6 +186,33 @@ def assign_episode(
         .options(joinedload(Assignment.episode))
         .all()
     ]
+
+
+@router.post("/{request_id}/assign/{episode_pk}/retry-export")
+def retry_export(
+    request_id: int,
+    episode_pk: int,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """Re-queue a failed export job (operator/admin only)."""
+    if current_user.role not in (UserRole.OPERATOR, UserRole.ADMIN):
+        raise DomainError("FORBIDDEN", "Only operators can retry exports", status.HTTP_403_FORBIDDEN)
+    request = _get_visible_request(db, request_id, current_user)
+    job = (
+        db.query(ExportJob)
+        .filter(ExportJob.request_id == request.id, ExportJob.episode_id == episode_pk)
+        .first()
+    )
+    if not job:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Export job not found")
+    if job.status == ExportStatus.DONE:
+        raise DomainError("EXPORT_DONE", "Export already completed")
+    job.attempts = 0
+    job.status = ExportStatus.QUEUED
+    job.last_error = None
+    db.commit()
+    return {"episode_pk": episode_pk, "status": job.status.value, "attempts": job.attempts}
 
 
 @router.delete("/{request_id}/assign/{episode_pk}", status_code=status.HTTP_204_NO_CONTENT)
